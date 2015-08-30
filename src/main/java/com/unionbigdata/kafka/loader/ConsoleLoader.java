@@ -16,7 +16,7 @@ public class ConsoleLoader implements SpecificLoader {
         System.out.println(topic + " : " + new String(msg));
     }
 
-    public void close() {
+    public void shutdown() {
         //do nothing
     }
 }

@@ -11,7 +11,7 @@ public interface SpecificLoader {
      * Init specific loader using the configs.
      * @param props configs to init the specific loader.
      */
-    void init(Properties props);
+    void init(Properties props) throws Exception;
 
     /**
      * Load message from kafka to specific storage etc.
@@ -23,5 +23,5 @@ public interface SpecificLoader {
     /**
      * Close the loader,the loader should flush all data out if it has caches.
      */
-    void close();
+    void shutdown();
 }
