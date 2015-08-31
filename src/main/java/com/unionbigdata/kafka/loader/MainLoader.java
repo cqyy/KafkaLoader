@@ -9,6 +9,7 @@ import org.apache.log4j.Logger;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
@@ -22,16 +23,20 @@ import java.util.concurrent.Executors;
  */
 public class MainLoader {
 
-    private final File conf = new File("./conf/loader.conf");
+    private final String  confPath ="./conf/loader.conf";
     private final File pid = new File("./pid");
 
     private final Logger logger = LogManager.getLogger("MainLoader");
-    private final Properties props = new Properties();
+    private final Configuration conf = new Configuration();
     private ExecutorService executor = null;
     private SpecificLoader loader = null;
 
+
+    private void init(){
+    }
+
     public void start() {
-        checkAndInit();
+
         final String loaderClass = props.getProperty("loader.source.type");
         final String topic = props.getProperty("kafka.topic");
 
@@ -64,25 +69,6 @@ public class MainLoader {
 
     }
 
-    private void checkAndInit() {
-
-
-        //create conf file and folder
-        if (!conf.exists()) {
-            logger.info("config file not found,creates one at " + conf.getAbsolutePath());
-            if (!conf.getParentFile().exists()) {
-                conf.getParentFile().mkdir();
-            }
-            try {
-                conf.createNewFile();
-            } catch (IOException e) {
-                logger.error("Create config file failed." + e);
-            }
-            this.shutdown();
-        }
-    }
-
-
     private void checkAndCreatePid() throws Exception {
 
         if (pid.exists()) {
@@ -96,9 +82,6 @@ public class MainLoader {
         }
     }
 
-    private void checkAndLoadConfig() throws Exception{
-
-    }
     public void shutdown() {
         if (executor != null) {
             executor.shutdown();
