@@ -9,11 +9,11 @@ public interface SpecificLoader {
 
     /**
      * Init specific loader using the configs.
-     * @param props configs to init the specific loader.
+     * @param conf configs to init the specific loader.
      * @param topic message topic
      * @throws Exception
      */
-    void init(Properties props,String topic) throws Exception;
+    void init(Configuration conf,String topic) throws Exception;
 
     /**
      * Load message from kafka to specific storage etc.
