@@ -9,7 +9,7 @@ public class ConsoleLoader implements SpecificLoader {
 
     private String topic = "";
 
-    public void init(Properties props,String topic) {
+    public void init(LoaderContext context,String topic) {
         //do nothing
         this.topic = topic;
     }

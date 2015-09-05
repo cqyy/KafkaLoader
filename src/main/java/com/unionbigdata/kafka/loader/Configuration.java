@@ -86,9 +86,14 @@ public class Configuration {
         }
         try{
             Class<?> clazz = Class.forName(strValue);
+            return clazz;
         } catch (ClassNotFoundException e) {
            return defaultValue;
         }
+    }
+
+    public Properties getProps(){
+        return props;
     }
 
     private String getTrimed(String key){

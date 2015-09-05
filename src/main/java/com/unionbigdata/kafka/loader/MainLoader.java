@@ -6,15 +6,14 @@ import kafka.consumer.KafkaStream;
 import kafka.javaapi.consumer.ConsumerConnector;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
+import org.apache.log4j.helpers.Loader;
 
+import java.awt.peer.ScrollbarPeer;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -23,50 +22,82 @@ import java.util.concurrent.Executors;
  */
 public class MainLoader {
 
-    private final String  confPath ="./conf/loader.conf";
+    private final String confPath = "./conf/loader.conf";
     private final File pid = new File("./pid");
 
     private final Logger logger = LogManager.getLogger("MainLoader");
     private final Configuration conf = new Configuration();
-    private ExecutorService executor = null;
-    private SpecificLoader loader = null;
+    private final Map<String, List<SpecificLoader>> topicLoaders = new HashMap<>(); //map from topic to loaders.
+    private final Map<String, Integer> topicThreads = new HashMap<>();
+    private final Map<String,ExecutorService> topicExecutors = new HashMap<>();
 
+    private ConsumerConnector kafkaConnector = null;
+    private LoaderContext context = null;
 
-    private void init(){
+    private void init() {
+        // init the config
+        try {
+            conf.addResource(confPath);
+        } catch (IOException e) {
+            logger.warn("Load config resource failed." + e);
+        }
+        if (conf.getString("group.id","").equals("")){
+            conf.getProps().put("group.id",genGroup());
+        }
+        // init the LoaderContext
+        context = new LoaderContext(conf, logger, this, new FailedMessageHandler() {
+            @Override
+            public void messageFailed(byte[] msg, String topic, Class<?> loaderClss) {
+                //TODO
+            }
+        });
+
+        //init topics and the specific loader.
+        String[] topics = conf.getString("loader.topics", "").split(",");
+        if (topics.length == 0) {
+            logger.warn("No topic config.");
+            return;
+        }
+        for (String topic : topics) {
+            int threads = conf.getInt("loader.topic." + topic + ".threads", 1);
+            topicThreads.put(topic, threads);
+            List<SpecificLoader> loaders = new LinkedList<>();
+            topicLoaders.put(topic, loaders);
+            String[] dsts = conf.getString("loader.topic." + topic, "").split(",");
+            if (dsts.length == 0) {
+                logger.info("No dst config for topic:" + topic);
+                continue;
+            }
+            for (String dst : dsts) {
+                String clazz = conf.getString("loader.topic." + topic + "." + dst + ".class", "");
+                try {
+                    SpecificLoader loader = (SpecificLoader) Class.forName(clazz).newInstance();
+                    loader.init(context,topic);
+                    loaders.add(loader);
+                } catch (InstantiationException | IllegalAccessException | ClassNotFoundException e) {
+                    //this should not happen.
+                    logger.error("Create instance of SpecificLoader failed.CLass :" + clazz + e);
+                }catch (Exception e){
+                    logger.warn("Init loader failed.Loader " + clazz +  " Exception: " +e);
+                }
+            }
+        }
+        for (Map.Entry<String,Integer> entry:topicThreads.entrySet()){
+            ExecutorService executors = Executors.newFixedThreadPool(entry.getValue());
+            topicExecutors.put(entry.getKey(),executors);
+        }
     }
 
     public void start() {
-
-        final String loaderClass = props.getProperty("loader.source.type");
-        final String topic = props.getProperty("kafka.topic");
-
-        //create the specific loader and init it.
-        try {
-            loader = (SpecificLoader) Class.forName(loaderClass).newInstance();
-        } catch (Exception e) {
-            logger.error("Get the instance of " + loaderClass + " failed. " + e);
-            this.shutdown();
+        init();
+        kafkaConnector = kafka.consumer.Consumer.createJavaConsumerConnector(new ConsumerConfig(conf.getProps()));
+        Map<String, List<KafkaStream<byte[], byte[]>>> consumerMap = kafkaConnector.createMessageStreams(topicThreads);
+        for (String topic : topicThreads.keySet()) {
+            List<KafkaStream<byte[], byte[]>> streams = consumerMap.get(topic);
+            for (KafkaStream<byte[], byte[]> stream : streams) {
+                topicExecutors.get(topic).submit(new PartitionConsumer(stream, topicLoaders.get(topic), topic, logger));
+            }
         }
-        try {
-            loader.init(props);
-        } catch (Exception e) {
-            logger.error("Init loader " + loaderClass + " failed." + e);
-            this.shutdown();
-        }
-
-        int threads = props.getProperty("loader.consumer.thread.num") == null ? 1 : Integer.parseInt(props.getProperty("loader.consumer.thread.num"));
-        if (threads <= 0) threads = 1;
-        executor = Executors.newFixedThreadPool(threads);
-
-        ConsumerConnector consumer = kafka.consumer.Consumer.createJavaConsumerConnector(new ConsumerConfig(props));
-        Map<String, Integer> topics = new HashMap<String, Integer>();
-        topics.put(topic, threads);
-        Map<String, List<KafkaStream<byte[], byte[]>>> consumerMap = consumer.createMessageStreams(topics);
-        List<KafkaStream<byte[], byte[]>> streams = consumerMap.get(topic);
-        for (KafkaStream<byte[], byte[]> stream : streams) {
-            executor.submit(new PartitionConsumer(stream, loader, topic, logger));
-        }
-
     }
 
     private void checkAndCreatePid() throws Exception {
@@ -83,17 +114,20 @@ public class MainLoader {
     }
 
     public void shutdown() {
-        if (executor != null) {
+        kafkaConnector.shutdown();
+        for (ExecutorService executor : topicExecutors.values()){
             executor.shutdown();
         }
-        if (loader != null) {
-            loader.shutdown();
+        for (List<SpecificLoader> loaders : topicLoaders.values()){
+            for (SpecificLoader loader : loaders){
+                loader.shutdown();
+            }
         }
     }
 
     //Generate a kakfa group name,it should guarantee the name is unique.
-    private String genGroup(String topic) {
-        return topic + "-" + System.currentTimeMillis();
+    private String genGroup() {
+        return System.currentTimeMillis() + "_" + Thread.currentThread().hashCode();
     }
 
     public static void main(String[] args) {
@@ -104,13 +138,13 @@ public class MainLoader {
     private class PartitionConsumer implements Runnable {
 
         private final KafkaStream<byte[], byte[]> stream;
-        private final SpecificLoader loader;
+        private final List<SpecificLoader> loaders;
         private final String topic;
         private final Logger logger;
 
-        PartitionConsumer(KafkaStream<byte[], byte[]> stream, SpecificLoader loader, String topic, Logger logger) {
+        PartitionConsumer(KafkaStream<byte[], byte[]> stream, List<SpecificLoader> loaders, String topic, Logger logger) {
             this.stream = stream;
-            this.loader = loader;
+            this.loaders = loaders;
             this.topic = topic;
             this.logger = logger;
         }
@@ -119,7 +153,13 @@ public class MainLoader {
             logger.info("PartitionConsumer " + Thread.currentThread() + " started.");
             ConsumerIterator<byte[], byte[]> iterator = stream.iterator();
             while (iterator.hasNext()) {
-                loader.load(iterator.next().message(), topic);
+                for (SpecificLoader loader : loaders) {
+                    try {
+                        loader.load(iterator.next().message());
+                    } catch (Exception e) {
+                        //TODO handle failed message.
+                    }
+                }
             }
         }
 
