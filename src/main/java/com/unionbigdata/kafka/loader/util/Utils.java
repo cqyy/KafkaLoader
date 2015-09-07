@@ -1,4 +1,4 @@
-package com.unionbigdata.kafka.loader;
+package com.unionbigdata.kafka.loader.util;
 
 import java.sql.BatchUpdateException;
 import java.text.SimpleDateFormat;

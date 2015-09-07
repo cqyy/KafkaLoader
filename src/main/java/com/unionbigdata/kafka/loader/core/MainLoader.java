@@ -1,18 +1,20 @@
-package com.unionbigdata.kafka.loader;
+package com.unionbigdata.kafka.loader.core;
 
+import com.unionbigdata.kafka.loader.conf.Configuration;
+import com.unionbigdata.kafka.loader.FailedMessageHandler;
 import kafka.consumer.ConsumerConfig;
 import kafka.consumer.ConsumerIterator;
 import kafka.consumer.KafkaStream;
 import kafka.javaapi.consumer.ConsumerConnector;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
-import org.apache.log4j.helpers.Loader;
 
-import java.awt.peer.ScrollbarPeer;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -24,15 +26,17 @@ public class MainLoader {
 
     private final String confPath = "./conf/loader.conf";
     private final File pid = new File("./pid");
+    private final File libs = new File("./lib");
 
     private final Logger logger = LogManager.getLogger("MainLoader");
     private final Configuration conf = new Configuration();
     private final Map<String, List<SpecificLoader>> topicLoaders = new HashMap<>(); //map from topic to loaders.
-    private final Map<String, Integer> topicThreads = new HashMap<>();
-    private final Map<String,ExecutorService> topicExecutors = new HashMap<>();
+    private final Map<String, Integer> topicThreads = new HashMap<>();              //map from topic to consumer thread number.
+    private final Map<String,ExecutorService> topicExecutors = new HashMap<>();     //map from topic to consumer executor service.
 
     private ConsumerConnector kafkaConnector = null;
     private LoaderContext context = null;
+    private ClassLoader cl = null;
 
     private void init() {
         // init the config
@@ -52,6 +56,21 @@ public class MainLoader {
             }
         });
 
+        //init the class loader
+        if (!libs.exists()){
+            libs.mkdir();
+        }
+        File[] jars = libs.listFiles();
+        URL[] urls = new URL[jars.length];
+        for(int i = 0; i < jars.length; i++){
+            try {
+                urls[i] = jars[i].toURI().toURL();
+            } catch (MalformedURLException e) {
+                logger.warn("Load jar " + jars[i] + " failed." + e);
+            }
+        }
+        cl = new URLClassLoader(urls);
+
         //init topics and the specific loader.
         String[] topics = conf.getString("loader.topics", "").split(",");
         if (topics.length == 0) {
@@ -69,19 +88,23 @@ public class MainLoader {
                 continue;
             }
             for (String dst : dsts) {
-                String clazz = conf.getString("loader.topic." + topic + "." + dst + ".class", "");
+                String className = conf.getString("loader.topic." + topic + "." + dst + ".class", "");
                 try {
-                    SpecificLoader loader = (SpecificLoader) Class.forName(clazz).newInstance();
+                    Class clazz = cl.loadClass(className);
+                    Constructor<? extends SpecificLoader> ctor = clazz.getConstructor();
+                    SpecificLoader loader = ctor.newInstance();
                     loader.init(context,topic);
                     loaders.add(loader);
                 } catch (InstantiationException | IllegalAccessException | ClassNotFoundException e) {
                     //this should not happen.
-                    logger.error("Create instance of SpecificLoader failed.CLass :" + clazz + e);
+                    logger.error("Create instance of SpecificLoader failed.CLass :" + className + e);
                 }catch (Exception e){
-                    logger.warn("Init loader failed.Loader " + clazz +  " Exception: " +e);
+                    logger.warn("Init loader failed.Loader " + className + " Exception: " + e);
                 }
             }
         }
+
+        //init executor service
         for (Map.Entry<String,Integer> entry:topicThreads.entrySet()){
             ExecutorService executors = Executors.newFixedThreadPool(entry.getValue());
             topicExecutors.put(entry.getKey(),executors);
@@ -153,9 +176,10 @@ public class MainLoader {
             logger.info("PartitionConsumer " + Thread.currentThread() + " started.");
             ConsumerIterator<byte[], byte[]> iterator = stream.iterator();
             while (iterator.hasNext()) {
+                byte[] msg = iterator.next().message();
                 for (SpecificLoader loader : loaders) {
                     try {
-                        loader.load(iterator.next().message());
+                        loader.load(msg);
                     } catch (Exception e) {
                         //TODO handle failed message.
                     }
@@ -167,5 +191,6 @@ public class MainLoader {
             logger.info("PartitionConsumer " + Thread.currentThread() + " shutdown.");
         }
     }
+
 
 }

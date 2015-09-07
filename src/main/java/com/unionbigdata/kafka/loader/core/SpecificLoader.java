@@ -1,4 +1,4 @@
-package com.unionbigdata.kafka.loader;
+package com.unionbigdata.kafka.loader.core;
 
 /**
  * Created by cqyua on 2015/8/26.

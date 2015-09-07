@@ -1,6 +1,7 @@
 package com.unionbigdata.kafka.loader;
 
-import java.util.Properties;
+import com.unionbigdata.kafka.loader.core.LoaderContext;
+import com.unionbigdata.kafka.loader.core.SpecificLoader;
 
 /**
  * Created by cqyua on 2015/8/26.

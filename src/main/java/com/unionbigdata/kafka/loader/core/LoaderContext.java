@@ -1,5 +1,7 @@
-package com.unionbigdata.kafka.loader;
+package com.unionbigdata.kafka.loader.core;
 
+import com.unionbigdata.kafka.loader.conf.Configuration;
+import com.unionbigdata.kafka.loader.FailedMessageHandler;
 import org.apache.log4j.Logger;
 
 /**

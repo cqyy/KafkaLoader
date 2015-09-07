@@ -1,4 +1,4 @@
-package com.unionbigdata.kafka.loader;
+package com.unionbigdata.kafka.loader.conf;
 
 import java.io.File;
 import java.io.FileInputStream;
