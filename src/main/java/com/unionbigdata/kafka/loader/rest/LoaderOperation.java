@@ -12,12 +12,14 @@ import javax.ws.rs.core.Context;
 @Path("/")
 public class LoaderOperation {
 
+    @Context
+    RestServer.HelloTest test;
 
     @GET
     @Path("/status")
     @Produces("text/plain")
     public String status(@Context ContainerRequestContext crc){
-        RestServer.HelloTest test = (RestServer.HelloTest) crc.getProperty("loader.context");
-        return test.hello();
+      //t = crc.getProperty("loader.context");
+        return test != null ?"OK":"Failed";
     }
 }

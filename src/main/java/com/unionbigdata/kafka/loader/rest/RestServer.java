@@ -7,6 +7,7 @@ import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.glassfish.jersey.server.ResourceConfig;
+import org.glassfish.jersey.servlet.ServletContainer;
 
 import javax.ws.rs.container.ContainerRequestContext;
 import javax.ws.rs.core.UriBuilder;
@@ -34,17 +35,34 @@ public class RestServer {
     }
 
     public static void main(String[] args) throws Exception {
-        URI baseURI = UriBuilder.fromUri("http://localhost/").port(8999).build();
-        ResourceConfig rc = new ResourceConfig(LoaderOperation.class);
-        Map<String,Object> pros = new HashMap<>();
-        pros.put("loader.context", new Object());
-        rc.addProperties(pros);
+        //URI baseURI = UriBuilder.fromUri("http://localhost/").port(8999).build();
+        ResourceConfig rc = new ResourceConfig(MyApplication.class);
+//        Map<String,Object> pros = new HashMap<>();
+//        pros.put("loader.context", new HelloTest());
+//        rc.addProperties(pros);
+//        rc.register(new HelloTest());
         //Server server = JettyHttpContainerFactory
+        ServletContextHandler handler = new ServletContextHandler(ServletContextHandler.SESSIONS);
+        handler.setContextPath("/");
+
+        ServletHolder holder = new ServletHolder(new ServletContainer(rc));
+        handler.addServlet(holder,"/*");
+
+        Server jettyServer = new Server(8080);
+        jettyServer.setHandler(handler);
+        jettyServer.start();
     }
 
     private void init() {
-//        ServletContextHandler handler = new ServletContextHandler(ServletContextHandler.SESSIONS);
-//        handler.setContextPath("/");
+        ServletContextHandler handler = new ServletContextHandler(ServletContextHandler.SESSIONS);
+        handler.setContextPath("/");
+
+        ServletHolder holder = new ServletHolder(new ServletContainer(new ResourceConfig()));
+        handler.addServlet(holder,"/*");
+
+        jettyServer = new Server(8080);
+        jettyServer.setHandler(handler);
+
 //
 //        //int port = context.conf.getInt("loader.rest.port", 8099);
 //        jettyServer = new Server(8080);

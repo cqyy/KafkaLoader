@@ -82,13 +82,13 @@ public class MainLoader {
             topicThreads.put(topic, threads);
             List<SpecificLoader> loaders = new LinkedList<>();
             topicLoaders.put(topic, loaders);
-            String[] dsts = conf.getString("loader.topic." + topic, "").split(",");
+            String[] dsts = conf.getString("loader.topic." + topic + ".dst", "").split(",");
             if (dsts.length == 0) {
                 logger.info("No dst config for topic:" + topic);
                 continue;
             }
             for (String dst : dsts) {
-                String className = conf.getString("loader.topic." + topic + "." + dst + ".class", "");
+                String className = conf.getString("loader.topic." + topic + ".dst." + dst + ".class", "");
                 try {
                     Class clazz = cl.loadClass(className);
                     Constructor<? extends SpecificLoader> ctor = clazz.getConstructor();
