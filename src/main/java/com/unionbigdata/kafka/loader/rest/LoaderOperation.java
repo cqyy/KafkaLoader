@@ -1,10 +1,13 @@
 package com.unionbigdata.kafka.loader.rest;
 
+import com.unionbigdata.kafka.loader.common.LoaderContext;
+
+import javax.inject.Inject;
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
-import javax.ws.rs.container.ContainerRequestContext;
-import javax.ws.rs.core.Context;
+import java.util.List;
+import java.util.Set;
 
 /**
  * Created by kali on 2015/9/6.
@@ -12,14 +15,20 @@ import javax.ws.rs.core.Context;
 @Path("/")
 public class LoaderOperation {
 
-    @Context
-    RestServer.HelloTest test;
+    @Inject
+    LoaderContext context;
 
     @GET
     @Path("/status")
+    @Produces("text/json")
+    public Set<String> topics(){
+        return context.loader.topics();
+    }
+
+    @GET
+    @Path("/shutdown")
     @Produces("text/plain")
-    public String status(@Context ContainerRequestContext crc){
-      //t = crc.getProperty("loader.context");
-        return test != null ?"OK":"Failed";
+    public void shutdown(){
+        context.loader.shutdown();
     }
 }

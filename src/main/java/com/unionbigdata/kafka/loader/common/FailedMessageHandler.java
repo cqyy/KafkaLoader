@@ -1,4 +1,4 @@
-package com.unionbigdata.kafka.loader;
+package com.unionbigdata.kafka.loader.common;
 
 /**
  * Created by kali on 2015/9/4.

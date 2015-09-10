@@ -1,6 +1,6 @@
 package com.unionbigdata.kafka.loader;
 
-import com.unionbigdata.kafka.loader.core.LoaderContext;
+import com.unionbigdata.kafka.loader.common.LoaderContext;
 import com.unionbigdata.kafka.loader.core.SpecificLoader;
 
 /**

@@ -1,7 +1,11 @@
 package com.unionbigdata.kafka.loader.core;
 
+import com.unionbigdata.kafka.loader.common.LoaderContext;
+import com.unionbigdata.kafka.loader.common.MainLoaderOperation;
+import com.unionbigdata.kafka.loader.common.SpecificLoader;
 import com.unionbigdata.kafka.loader.conf.Configuration;
-import com.unionbigdata.kafka.loader.FailedMessageHandler;
+import com.unionbigdata.kafka.loader.common.FailedMessageHandler;
+import com.unionbigdata.kafka.loader.rest.RestServer;
 import kafka.consumer.ConsumerConfig;
 import kafka.consumer.ConsumerIterator;
 import kafka.consumer.KafkaStream;
@@ -22,7 +26,7 @@ import java.util.concurrent.Executors;
 /**
  * Created by cqyua on 2015/8/26.
  */
-public class MainLoader {
+public class MainLoader implements MainLoaderOperation {
 
     private final String confPath = "./conf/loader.conf";
     private final File pid = new File("./pid");
@@ -37,6 +41,7 @@ public class MainLoader {
     private ConsumerConnector kafkaConnector = null;
     private LoaderContext context = null;
     private ClassLoader cl = null;
+    private RestServer restServer = null;
 
     private void init() {
         // init the config
@@ -109,6 +114,9 @@ public class MainLoader {
             ExecutorService executors = Executors.newFixedThreadPool(entry.getValue());
             topicExecutors.put(entry.getKey(),executors);
         }
+
+        //init REST Server
+        restServer = new RestServer(context);
     }
 
     public void start() {
@@ -120,6 +128,11 @@ public class MainLoader {
             for (KafkaStream<byte[], byte[]> stream : streams) {
                 topicExecutors.get(topic).submit(new PartitionConsumer(stream, topicLoaders.get(topic), topic, logger));
             }
+        }
+        try {
+            restServer.start();
+        } catch (Exception e) {
+            logger.error("REST¡¡Server started failed." + e);
         }
     }
 
@@ -136,7 +149,18 @@ public class MainLoader {
         }
     }
 
+    @Override
+    public Set<String> topics() {
+        Set<String> topics = new HashSet<>();
+        synchronized (topicLoaders){
+            topics.addAll(topicLoaders.keySet());
+        }
+        return topics;
+    }
+
+    @Override
     public void shutdown() {
+        restServer.shutdown();
         kafkaConnector.shutdown();
         for (ExecutorService executor : topicExecutors.values()){
             executor.shutdown();

@@ -1,7 +1,7 @@
-package com.unionbigdata.kafka.loader.core;
+package com.unionbigdata.kafka.loader.common;
 
 import com.unionbigdata.kafka.loader.conf.Configuration;
-import com.unionbigdata.kafka.loader.FailedMessageHandler;
+import com.unionbigdata.kafka.loader.core.MainLoader;
 import org.apache.log4j.Logger;
 
 /**
@@ -11,10 +11,10 @@ public class LoaderContext {
 
     public final Configuration conf;
     public final Logger logger;
-    public final MainLoader loader;
+    public final MainLoaderOperation loader;
     public final FailedMessageHandler handler;
 
-    public LoaderContext(Configuration conf,Logger logger,MainLoader loader,FailedMessageHandler handler){
+    public LoaderContext(Configuration conf,Logger logger,MainLoaderOperation loader,FailedMessageHandler handler){
         this.conf = conf;
         this.logger = logger;
         this.loader = loader;
